@@ -36,7 +36,7 @@ class DummyVNCEnv(vectorized.Env):
         self.observation_space = spaces.VNCObservationSpace()
         self.action_space = spaces.VNCActionSpace()
 
-    def _configure(self, remotes=None,
+    def configure(self, remotes=None,
                    client_id=None,
                    start_timeout=None, docker_image=None,
                    ignore_clock_skew=False, disable_action_probes=False,
@@ -45,7 +45,6 @@ class DummyVNCEnv(vectorized.Env):
                    observer=False,
                    _n=3,
     ):
-        super(DummyVNCEnv, self)._configure()
         self.n = _n
         self._reward_buffers = [rewarder.RewardBuffer('dummy:{}'.format(i)) for i in range(self.n)]
         self._started = True
@@ -57,7 +56,7 @@ class DummyVNCEnv(vectorized.Env):
         assert self.n == len(action_n), "Expected {} actions but received {}: {}".format(self.n, len(action_n), action_n)
 
         observation_n = [{
-            'visual': np.zeros((1024, 768, 3), dtype=np.uint8),
+            'vision': np.zeros((1024, 768, 3), dtype=np.uint8),
             'text': [],
             'action': action_n[i]
         } for i in range(self.n)]

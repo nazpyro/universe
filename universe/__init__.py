@@ -17,11 +17,25 @@ warnings.filterwarnings(
 
 from gym.envs.registration import register
 
+import universe.scoreboard
 import universe.configuration
 from universe import error, envs
 from universe.remotes import docker_remote
 from universe.rewarder import merge_infos
 from universe.runtimes.registration import runtime_spec
+
+__all__ = [
+    'configuration', 'envs', 'error', 'kube', 'pyprofile', 'remotes', 'rewarder', 'runtimes',
+    'scoreboard', 'spaces', 'twisty', 'utils', 'vectorized', 'vncdriver', 'wrappers',
+    'configure_logging', 'docker_image', 'enable_logfile',
+    'logger', 'extra_logger']
+
+def docker_image(runtime_id):
+    logger.warn('DEPRECATION WARNING: universe.docker_image(runtime_id) is deprecated and will be removed soon. Use runtime_spec(runtime_id).image instead. ')
+    return runtime_spec(runtime_id).image
+
+
+#################### Logging configuration ####################
 
 logger = logging.getLogger(__name__)
 extra_logger = logging.getLogger('universe.extra.'+__name__)
@@ -32,6 +46,17 @@ def enable_logfile(path=None):
     raise error.Error('Renamed to "universe.configure_logging()"')
 
 def configure_logging(path=None):
+    """
+    Set up log levels, and split verbose logs to a file
+
+        Configure the client-side environment logs to print
+        to stdout at "info" level, and also to print to a
+        verbose log file located at /tmp/universe-<pid>.log
+        or another path you specify at "debug" level.
+        We suggest calling this method at the beginning of
+        your script.
+    """
+
     global _logging_configured
     if _logging_configured:
         return
@@ -60,9 +85,24 @@ def configure_logging(path=None):
     extra_logger.propagate = False
     extra_logger.addHandler(handler)
 
-def docker_image(runtime_id):
-    logger.warn('DEPRECATION WARNING: universe.docker_image(runtime_id) is deprecated and will be removed soon. Use runtime_spec(runtime_id).image instead. ')
-    return runtime_spec(runtime_id).image
+############### Environment registration and runtime specification ###############
+#
+#    Universe environments are registered with the gym
+#    environment registry when the universe module
+#    is imported. We use the "tags" field to store
+#    additional data specific to Universe.
+
+
+#------------------------ Gym core environments -----------------------#
+#     Asynchronous VNC versions of core gym environments,
+#     such as CartPole and Pong
+
+# Note on metadata:
+#    Environments send on-screen metadata: the current time, and the
+#    time the last action was received from the agent. This timestamp
+#    data is used to compute action and observation lags. For core
+#    environments, this data is sent using on-screen pixels that encode
+#    timestamps.
 
 metadata_pixels = {
     'type': 'pixels',
@@ -72,6 +112,7 @@ metadata_pixels = {
 register(
     id='gym-core.CartPoleLowDSync-v0',
     entry_point='universe.wrappers:WrappedGymCoreSyncEnv',
+    max_episode_steps=500,
     tags={
         'vnc': True,
         'runtime': 'gym-core',
@@ -81,15 +122,14 @@ register(
         'rewarder_observation': True,
         'gym_core_id': 'CartPole-v0',
 },
-    # experience_limit=1000,
     trials=2,
-    timestep_limit=500,
 )
 
 # Dynamics should match CartPole-v0, but have pixel observations
 register(
     id='gym-core.CartPoleSync-v0',
     entry_point='universe.wrappers:WrappedGymCoreSyncEnv',
+    max_episode_steps=500,
     tags={
         'vnc': True,
         'runtime': 'gym-core',
@@ -98,15 +138,14 @@ register(
     kwargs={
         'gym_core_id': 'CartPole-v0',
     },
-    # experience_limit=1000,
     trials=2,
-    timestep_limit=500,
 )
 
 # Async cartpole with 4-d observations
 register(
     id='gym-core.CartPoleLowD-v0',
     entry_point='universe.wrappers:WrappedGymCoreEnv',
+    max_episode_steps=500,
     tags={
         'vnc': True,
         'runtime': 'gym-core',
@@ -116,14 +155,13 @@ register(
         'rewarder_observation': True,
         'gym_core_id': 'CartPole-v0',
     },
-    # experience_limit=1000,
     trials=2,
-    timestep_limit=500,
 )
 
 register(
     id='gym-core.CartPole-v0',
     entry_point='universe.wrappers:WrappedGymCoreEnv',
+    max_episode_steps=500,
     tags={
         'vnc': True,
         'runtime': 'gym-core',
@@ -132,9 +170,7 @@ register(
     kwargs={
         'gym_core_id': 'CartPole-v0',
     },
-    # experience_limit=1000,
     trials=2,
-    timestep_limit=500,
 )
 
 # gym-core.Atari
@@ -159,6 +195,7 @@ for game in ['air_raid', 'alien', 'amidar', 'assault', 'asterix',
         register(
             id='gym-core.{}'.format(gym_core_id),
             entry_point='universe.wrappers:WrappedGymCoreEnv',
+            max_episode_steps=100000,
             tags={
                 'vnc': True,
                 'atari': True,
@@ -168,13 +205,12 @@ for game in ['air_raid', 'alien', 'amidar', 'assault', 'asterix',
             kwargs={
                 'gym_core_id': gym_core_id,
             },
-            # experience_limit=1000,
-            timestep_limit=100000,
         )
 
         register(
             id='gym-core.{}Sync-v{}'.format(base, version),
             entry_point='universe.wrappers:WrappedGymCoreSyncEnv',
+            max_episode_steps=100000,
             tags={
                 'vnc': True,
                 'atari': True,
@@ -184,13 +220,12 @@ for game in ['air_raid', 'alien', 'amidar', 'assault', 'asterix',
             kwargs={
                 'gym_core_id': gym_core_id,
             },
-            # experience_limit=1000,
-            timestep_limit=100000,
         )
 
         register(
             id='gym-core.{}30FPS-v{}'.format(base, version),
             entry_point='universe.wrappers:WrappedGymCoreEnv',
+            max_episode_steps=100000,
             tags={
                 'vnc': True,
                 'atari': True,
@@ -201,13 +236,12 @@ for game in ['air_raid', 'alien', 'amidar', 'assault', 'asterix',
                 'gym_core_id': gym_core_id,
                 'fps': 30,
             },
-            # experience_limit=1000,
-            timestep_limit=100000,
         )
 
         register(
             id='gym-core.{}Slow-v{}'.format(base, version),
             entry_point='universe.wrappers:WrappedGymCoreEnv',
+            max_episode_steps=100000,
             tags={
                 'vnc': True,
                 'atari': True,
@@ -218,8 +252,6 @@ for game in ['air_raid', 'alien', 'amidar', 'assault', 'asterix',
                 'gym_core_id': gym_core_id,
                 'fps': 15,
             },
-            # experience_limit=1000,
-            timestep_limit=100000,
         )
 
         deterministic_gym_core_id = '{}Deterministic-v{}'.format(base, version) # e.g. SpaceInvadersDeterministic-v3
@@ -227,6 +259,7 @@ for game in ['air_raid', 'alien', 'amidar', 'assault', 'asterix',
         register(
             id='gym-core.{}Deterministic-v{}'.format(base, version),
             entry_point='universe.wrappers:WrappedGymCoreEnv',
+            max_episode_steps=100000,
             tags={
                 'vnc': True,
                 'atari': True,
@@ -236,11 +269,11 @@ for game in ['air_raid', 'alien', 'amidar', 'assault', 'asterix',
             kwargs={
                 'gym_core_id': deterministic_gym_core_id,
             },
-            timestep_limit=100000,
         )
         register(
             id='gym-core.{}DeterministicSlow-v{}'.format(base, version),
             entry_point='universe.wrappers:WrappedGymCoreEnv',
+            max_episode_steps=75000,
             tags={
                 'vnc': True,
                 'atari': True,
@@ -251,11 +284,11 @@ for game in ['air_raid', 'alien', 'amidar', 'assault', 'asterix',
                 'gym_core_id': deterministic_gym_core_id,
                 'fps': 15,
             },
-            timestep_limit=75000,
         )
         register(
             id='gym-core.{}DeterministicSync-v{}'.format(base, version),
             entry_point='universe.wrappers:WrappedGymCoreSyncEnv',
+            max_episode_steps=75000,
             tags={
                 'vnc': True,
                 'atari': True,
@@ -265,14 +298,13 @@ for game in ['air_raid', 'alien', 'amidar', 'assault', 'asterix',
             kwargs={
                 'gym_core_id': deterministic_gym_core_id,
             },
-            # experience_limit=1000,
-            timestep_limit=75000,
         )
 
         no_frameskip_gym_core_id = '{}NoFrameskip-v{}'.format(base, version) # e.g. SpaceInvadersNoFrameskip-v3
         register(
             id='gym-core.{}NoFrameskip-v{}'.format(base, version),
             entry_point='universe.wrappers:WrappedGymCoreEnv',
+            max_episode_steps=400000,
             tags={
                 'vnc': True,
                 'atari': True,
@@ -282,9 +314,14 @@ for game in ['air_raid', 'alien', 'amidar', 'assault', 'asterix',
             kwargs={
                 'gym_core_id': no_frameskip_gym_core_id,
             },
-            # experience_limit=1000,
-            timestep_limit=400000
         )
+
+#------------------------ Flash game environments ------------------------#
+#     Browser-based flash games, run locally
+#     in Chrome within a Docker container
+
+# Note on metadata: flashgames send time metadata using
+# an on-screen QR code
 
 metadata_v1 = {
     'type': 'qrcode',
@@ -294,10 +331,8 @@ metadata_v1 = {
     'height': 100,
 }
 
-# flashgames
-
-# Please keep this mirrored with the benchmarks in universe-envs/flashgames/gym_flashgames/__init__.py
-# You can use universe-envs/flashgames/bin/manage export_env_ids_for_registration to generate this list
+# Please keep this registry mirrored with the benchmarks in universe-envs/flashgames/gym_flashgames/__init__.py
+# You can use universe-envs/flashgames/bin/manage export_env_ids_for_registration to generate this list.
 for game in [
     'flashgames.1001ArabianNights-v0',
     'flashgames.21Balloons-v0',
@@ -340,6 +375,30 @@ for game in [
     'flashgames.AlienAssault-v0',
     'flashgames.AlienTransporter-v0',
     'flashgames.AmericanRacing-v0',
+    'flashgames.AmericanRacingLvl2-v0',
+    'flashgames.AmericanRacingLvl3-v0',
+    'flashgames.AmericanRacingLvl4-v0',
+    'flashgames.AmericanRacingLvl5-v0',
+    'flashgames.AmericanRacingLvl6-v0',
+    'flashgames.AmericanRacingLvl7-v0',
+    'flashgames.AmericanRacingLvl8-v0',
+    'flashgames.AmericanRacingLvl9-v0',
+    'flashgames.AmericanRacingLvl10-v0',
+    'flashgames.AmericanRacingLvl11-v0',
+    'flashgames.AmericanRacingLvl12-v0',
+    'flashgames.AmericanRacingLvl13-v0',
+    'flashgames.AmericanRacingLvl14-v0',
+    'flashgames.AmericanRacingLvl15-v0',
+    'flashgames.AmericanRacingLvl16-v0',
+    'flashgames.AmericanRacingLvl17-v0',
+    'flashgames.AmericanRacingLvl18-v0',
+    'flashgames.AmericanRacingLvl19-v0',
+    'flashgames.AmericanRacingLvl20-v0',
+    'flashgames.AmericanRacingLvl21-v0',
+    'flashgames.AmericanRacingLvl22-v0',
+    'flashgames.AmericanRacingLvl23-v0',
+    'flashgames.AmericanRacingLvl24-v0',
+    'flashgames.AmericanRacingLvl25-v0',
     'flashgames.AmericanRacing2-v0',
     'flashgames.AmigoPancho-v0',
     'flashgames.AmigoPancho3SheriffSancho-v0',
@@ -497,6 +556,15 @@ for game in [
     'flashgames.CoasterRacerLvl7-v0',
     'flashgames.CoasterRacerLvl8-v0',
     'flashgames.CoasterRacer2-v0',
+    'flashgames.CoasterRacer2Lvl2-v0',
+    'flashgames.CoasterRacer2Lvl3-v0',
+    'flashgames.CoasterRacer2Lvl4-v0',
+    'flashgames.CoasterRacer2Lvl5-v0',
+    'flashgames.CoasterRacer2Lvl6-v0',
+    'flashgames.CoasterRacer2Lvl7-v0',
+    'flashgames.CoasterRacer2Lvl8-v0',
+    'flashgames.CoasterRacer2Lvl9-v0',
+    'flashgames.CoasterRacer2Lvl10-v0',
     'flashgames.CoasterRacer2Bike-v0',
     'flashgames.CoasterRacer3-v0',
     'flashgames.CoffeeClicker-v0',
@@ -608,6 +676,21 @@ for game in [
     'flashgames.EvilMinion-v0',
     'flashgames.EvilSun-v0',
     'flashgames.EvolutionRacing-v0',
+    'flashgames.EvolutionRacingLvl2-v0',
+    'flashgames.EvolutionRacingLvl3-v0',
+    'flashgames.EvolutionRacingLvl4-v0',
+    'flashgames.EvolutionRacingLvl5-v0',
+    'flashgames.EvolutionRacingLvl6-v0',
+    'flashgames.EvolutionRacingLvl7-v0',
+    'flashgames.EvolutionRacingLvl8-v0',
+    'flashgames.EvolutionRacingLvl9-v0',
+    'flashgames.EvolutionRacingLvl10-v0',
+    'flashgames.EvolutionRacingLvl11-v0',
+    'flashgames.EvolutionRacingLvl12-v0',
+    'flashgames.EvolutionRacingLvl13-v0',
+    'flashgames.EvolutionRacingLvl14-v0',
+    'flashgames.EvolutionRacingLvl15-v0',
+    'flashgames.EvolutionRacingLvl16-v0',
     'flashgames.ExperimentalShooter2-v0',
     'flashgames.ExploreTheCandies-v0',
     'flashgames.ExtremeAirWars-v0',
@@ -654,7 +737,25 @@ for game in [
     'flashgames.Foosball2Player-v0',
     'flashgames.FootballHeads201314Ligue1-v0',
     'flashgames.FormulaRacer-v0',
+    'flashgames.FormulaRacerLvl2-v0',
+    'flashgames.FormulaRacerLvl3-v0',
+    'flashgames.FormulaRacerLvl4-v0',
+    'flashgames.FormulaRacerLvl5-v0',
+    'flashgames.FormulaRacerLvl6-v0',
+    'flashgames.FormulaRacerLvl7-v0',
+    'flashgames.FormulaRacerLvl8-v0',
     'flashgames.FormulaRacer2012-v0',
+    'flashgames.FormulaRacer2012Lvl2-v0',
+    'flashgames.FormulaRacer2012Lvl3-v0',
+    'flashgames.FormulaRacer2012Lvl4-v0',
+    'flashgames.FormulaRacer2012Lvl5-v0',
+    'flashgames.FormulaRacer2012Lvl6-v0',
+    'flashgames.FormulaRacer2012Lvl7-v0',
+    'flashgames.FormulaRacer2012Lvl8-v0',
+    'flashgames.FormulaRacer2012Lvl9-v0',
+    'flashgames.FormulaRacer2012Lvl10-v0',
+    'flashgames.FormulaRacer2012Lvl11-v0',
+    'flashgames.FormulaRacer2012Lvl12-v0',
     'flashgames.FormulaXspeed3d-v0',
     'flashgames.FoxSnakeJigsawPuzzle-v0',
     'flashgames.FpaWorld1Remix-v0',
@@ -742,6 +843,21 @@ for game in [
     'flashgames.HeatRushFutureLvl14-v0',
     'flashgames.HeatRushFutureLvl15-v0',
     'flashgames.HeatRushUsa-v0',
+    'flashgames.HeatRushUsaLvl2-v0',
+    'flashgames.HeatRushUsaLvl3-v0',
+    'flashgames.HeatRushUsaLvl4-v0',
+    'flashgames.HeatRushUsaLvl5-v0',
+    'flashgames.HeatRushUsaLvl6-v0',
+    'flashgames.HeatRushUsaLvl7-v0',
+    'flashgames.HeatRushUsaLvl8-v0',
+    'flashgames.HeatRushUsaLvl9-v0',
+    'flashgames.HeatRushUsaLvl10-v0',
+    'flashgames.HeatRushUsaLvl11-v0',
+    'flashgames.HeatRushUsaLvl12-v0',
+    'flashgames.HeatRushUsaLvl13-v0',
+    'flashgames.HeatRushUsaLvl14-v0',
+    'flashgames.HeatRushUsaLvl15-v0',
+    'flashgames.HeatRushUsaLvl16-v0',
     'flashgames.HeavenAndHell-v0',
     'flashgames.HeavyLegion2-v0',
     'flashgames.HeliVsTower-v0',
@@ -928,6 +1044,20 @@ for game in [
     'flashgames.NeonRaceLvl7-v0',
     'flashgames.NeonRaceLvl8-v0',
     'flashgames.NeonRace2-v0',
+    'flashgames.NeonRace2Lvl2-v0',
+    'flashgames.NeonRace2Lvl3-v0',
+    'flashgames.NeonRace2Lvl4-v0',
+    'flashgames.NeonRace2Lvl5-v0',
+    'flashgames.NeonRace2Lvl6-v0',
+    'flashgames.NeonRace2Lvl7-v0',
+    'flashgames.NeonRace2Lvl8-v0',
+    'flashgames.NeonRace2Lvl9-v0',
+    'flashgames.NeonRace2Lvl10-v0',
+    'flashgames.NeonRace2Lvl11-v0',
+    'flashgames.NeonRace2Lvl12-v0',
+    'flashgames.NeonRace2Lvl13-v0',
+    'flashgames.NeonRace2Lvl14-v0',
+    'flashgames.NeonRace2Lvl15-v0',
     'flashgames.Neopods-v0',
     'flashgames.NervousLadybug-v0',
     'flashgames.NewSiberianSupercarsRacing-v0',
@@ -1086,7 +1216,6 @@ for game in [
     'flashgames.ShamelessClone2-v0',
     'flashgames.Sheepster-v0',
     'flashgames.Sheepy-v0',
-    'flashgames.Shift-v0',
     'flashgames.ShimmyChute-v0',
     'flashgames.ShootTheCircle-v0',
     'flashgames.ShortCircuit-v0',
@@ -1126,6 +1255,13 @@ for game in [
     'flashgames.SpaceColony-v0',
     'flashgames.SpaceMadness-v0',
     'flashgames.SpacePunkRacer-v0',
+    'flashgames.SpacePunkRacerLvl2-v0',
+    'flashgames.SpacePunkRacerLvl3-v0',
+    'flashgames.SpacePunkRacerLvl4-v0',
+    'flashgames.SpacePunkRacerLvl5-v0',
+    'flashgames.SpacePunkRacerLvl6-v0',
+    'flashgames.SpacePunkRacerLvl7-v0',
+    'flashgames.SpacePunkRacerLvl8-v0',
     'flashgames.SpacemanMax-v0',
     'flashgames.SpanishLiga2016-v0',
     'flashgames.Sparks-v0',
@@ -1320,6 +1456,7 @@ for game in [
     register(
         id=game,
         entry_point='universe.wrappers:WrappedFlashgamesEnv',
+        max_episode_steps=20000,
         tags={
             'vnc': True,
             'flashgames': True,
@@ -1330,22 +1467,25 @@ for game in [
                 'value': 0x60,
             }
         },
-        timestep_limit=20000,
     )
 
 register(
     id='VNCNoopFlashgamesEnv-v0',  # Special noop flashgame env
     entry_point='universe.vnc:WrappedFlashgamesEnv',
+    max_episode_steps=10**7,
     tags={
         'vnc': True,
         'flashgames': True,
         'runtime': 'flashgames',
     },
-    timestep_limit=10**7,
 )
 
-# VNCWorldOfBits
-# primitive browser tasks.
+#------------------------ World of Bits and MiniWoB ------------------------#
+#     "World of Bits" comprises a series of browser tasks,
+#     including a series of simple "MiniWoB" tasks such
+#     as using buttons and sliders, as well as more complex
+#     tasks such as booking flights on actual websites.
+
 vnc_world_of_bits = [
     'wob.MiniWorldOfBits-v0',
     'wob.mini.BisectAngle-v0',
@@ -1451,57 +1591,63 @@ for game in vnc_world_of_bits:
     register(
         id=game,
         entry_point='universe.wrappers:WrappedVNCEnv',
+        max_episode_steps=10**7,
         tags={
             'vnc': True,
             'wob': True,
-            'runtime': 'world-of-bits'
+            'runtime': 'world-of-bits',
         },
-        timestep_limit=10**7,
     )
 
-# VNCStarCraft
+#-------------------------- Complex Games ------------------------#
+#     Any game, program, app, or website can be a
+#     Universe environment. Here we include
+#     a handful of sample "complex" games
+#     such as World of Bits, GTA V, and StarCraft.
+#     Adding more games is straightforward, and
+#     we welcome contributions of environments
+#     from the community!
+
 for id in ['starcraft.TerranAstralBalance-v0']:
     register(
         id=id,
         entry_point='universe.wrappers:WrappedStarCraftEnv',
+        max_episode_steps=10**7,
         tags={
             'vnc': True,
             'starcraft': True,
             'runtime': 'starcraft',
         },
-        timestep_limit=10**7,
     )
 
-# VNCGTAV
 for gtav_game in ['gtav.SaneDriving-v0', 'gtav.Speed-v0']:
     register(
         id=gtav_game,
         entry_point='universe.wrappers:WrappedGTAVEnv',
+        max_episode_steps=10**7,
         tags={
             'vnc': True,
             'gtav': True,
             'runtime': 'vnc-windows',
         },
-        timestep_limit=10**7,
     )
 
-# VNC World of Goo
 register(
     id='world.WorldOfGoo-v0',
     entry_point='universe.wrappers:WrappedWorldOfGooEnv',
+    max_episode_steps=10**7,
     tags={
         'vnc': True,
         'wog': True,
         'runtime': 'vnc-world-of-goo',
     },
-    timestep_limit=10**7,
 )
 
-# VNCInternet-v0
-for slith_game in ['SlitherIO-v0']:
+for slith_game in ['SlitherIO-v0', 'SlitherIONoSkins-v0', 'SlitherIOEasy-v0']:
     register(
         id='internet.' + slith_game,
         entry_point='universe.wrappers:WrappedInternetEnv',
+        max_episode_steps=10**7,
         tags={
             'vnc': True,
             'internet': True,
@@ -1513,19 +1659,18 @@ for slith_game in ['SlitherIO-v0']:
                 'value': 0x60,
             }
         },
-        timestep_limit=10**7,
     )
 
 register(
     id='test.DummyVNCEnv-v0',
     entry_point='universe.envs:DummyVNCEnv',
+    max_episode_steps= 10**7,
     tags={
         'vnc': True,
         'metadata_encoding': metadata_v1,
         'action_probe': {
             'type': 'key',
             'value': 0x60,
-        }
-    },
-    timestep_limit=10**7
+            }
+        },
     )

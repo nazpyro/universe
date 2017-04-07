@@ -82,8 +82,11 @@ class LogManager(object):
         else:
             logger.info("%s does not exist; not copying into recording directory", self.global_env_id_file)
 
-        if os.environ.get('COMPLETED_DEMONSTRATION_DIR', None):
-            shutil.copytree(self.logfile_dir, os.path.join(os.environ['COMPLETED_DEMONSTRATION_DIR'], os.path.basename(self.logfile_dir)))
+        if os.environ.get('COMPLETED_DEMONSTRATION_DIR'):
+            dest = os.path.join(os.environ['COMPLETED_DEMONSTRATION_DIR'], os.path.basename(self.logfile_dir))
+            logger.info('copying to %s', dest)
+            shutil.copytree(self.logfile_dir, dest)
+            shutil.copystat(self.logfile_dir, dest)
 
 
 class VNCProxyServer(protocol.Protocol, object):
@@ -96,6 +99,7 @@ class VNCProxyServer(protocol.Protocol, object):
         # Maybe we can do copy-rect at some point. May not help with
         # much though.
         # constants.COPY_RECTANGLE_ENCODING,
+        constants.TIGHT_ENCODING,
         constants.RAW_ENCODING,
         constants.ZLIB_ENCODING,
         # constants.HEXTILE_ENCODING,
@@ -282,7 +286,7 @@ class VNCProxyServer(protocol.Protocol, object):
         # We don't even create log directory until we've successfully
         # established the connection.
 
-        if self.enable_logging:
+        if self.enable_logging and self.factory.logfile_dir:
             # Log in vnc_recorder; don't log in playback
             self.start_logging()
             self.vnc_client.start_logging()

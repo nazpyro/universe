@@ -11,7 +11,6 @@ rather than a list of observations), turn it into a vectorized environment with 
 1.
 """
 
-    standalone = False
     metadata = {'runtime.vectorized': True}
 
     def __init__(self, env):
@@ -34,18 +33,13 @@ rather than a list of observations), turn it into a vectorized environment with 
 class Unvectorize(core.Wrapper):
     """
 Take a vectorized environment with a batch of size 1 and turn it into an unvectorized environment.
-""" 
+"""
     autovectorize = False
-    standalone = False
     metadata = {'runtime.vectorized': False}
-
-    def _configure(self, **kwargs):
-        super(Unvectorize, self)._configure(**kwargs)
-        if self.n != 1:
-            raise error.Error('Can only disable vectorization with n=1, not n={}'.format(self.n))
 
     def _reset(self):
         observation_n = self.env.reset()
+        assert(len(observation_n) == 1)
         return observation_n[0]
 
     def _step(self, action):
@@ -62,6 +56,9 @@ class WeakUnvectorize(Unvectorize):
         super(WeakUnvectorize, self).__init__(env)
         # WeakUnvectorize won't get configure called on it
         self.i = i
+
+    def _check_for_duplicate_wrappers(self):
+        pass  # Disable this check because we need to wrap vectorized envs in multiple unvectorize wrappers
 
     @property
     def env(self):

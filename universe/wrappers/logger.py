@@ -23,17 +23,20 @@ def stats(count):
     return s
 
 class Logger(vectorized.Wrapper):
-    def __init__(self, env):
+    metadata = {
+        'configure.required': True
+    }
+    def __init__(self, env, print_frequency=5):
         super(Logger, self).__init__(env)
-
-    def _configure(self, print_frequency=5, **kwargs):
         self.print_frequency = print_frequency
         extra_logger.info('Running VNC environments with Logger set to print_frequency=%s. To change this, pass "print_frequency=k" or "print_frequency=None" to "env.configure".', self.print_frequency)
-        super(Logger, self)._configure(**kwargs)
-        self._clear_step_state()
-        self.metadata['render.modes'] = self.env.metadata['render.modes']
-
+        if self.n is not None:
+            self._clear_step_state()
         self._last_step_time = None
+
+    def configure(self, **kwargs):
+        self.env.configure(**kwargs)
+        self._clear_step_state()
 
     def _clear_step_state(self):
         self.frames = 0
@@ -67,7 +70,7 @@ class Logger(vectorized.Wrapper):
         self.frames += 1
         delta = time.time() - self.last_print
         if delta > self.print_frequency:
-            fps = int(self.frames/delta)
+            fps = self.frames/delta
 
             # Displayed independently
             # action_lag = ','.join([diagnostics.display_timestamps_pair_max(action_lag) for action_lag in self.action_lag_n])
@@ -131,7 +134,7 @@ class Logger(vectorized.Wrapper):
                     ('vnc_pixels_ps[total]', '%0.1f', vnc_pixels_count),
                     ('reward_lag', '%s', reward_lag),
                     ('rewarder_message_lag', '%s', rewarder_message_lag),
-                    ('fps', '%s', fps),
+                    ('fps', '%0.2f', fps),
             ]:
                 if value == None:
                     continue

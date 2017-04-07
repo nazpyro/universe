@@ -121,13 +121,62 @@ run ``docker ps`` and get something like this:
      $ docker ps
      CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
 
+Alternate configuration - running the agent in docker
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The above instructions result in an agent that runs as a regular python process in your OS, and launches docker containers as needed for the remotes.
+Alternatively, you can build a docker image for the agent and run it as a container as well.
+You can do this in any operating system that has a recent version of docker installed, and the git client.
+
+To get started, clone the ``universe`` repo:
+
+.. code:: shell
+
+    git clone https://github.com/openai/universe.git
+    cd universe
+	
+Build a docker image, tag it as 'universe':
+
+.. code:: shell
+
+    docker build -t universe .
+
+This may take a while the first time, as the docker image layers are pulled from docker hub.
+
+Once the image is built, you can do a quick run of the test cases to make sure everything is working:
+
+.. code:: shell
+
+    docker run --privileged --rm -e DOCKER_NET_HOST=172.17.0.1 -v /var/run/docker.sock:/var/run/docker.sock universe pytest
+
+Here's a breakdown of that command:
+
+* ``docker run`` - launch a docker container
+* ``--rm`` - delete the container once the launched process finishes
+* ``-e DOCKER_NET_HOST=172.17.0.1`` - tells the universe remote (when launched) to make its VNC connection back to this docker-allocated IP
+* ``-v /var/run/docker.sock:/var/run/docker.sock`` - makes the docker unix socket from the host available to the container. This is a common technique used to allow containers to launch other containers alongside itself.
+* ``universe`` - use the imaged named 'universe' built above
+* ``pytest`` - run 'pytest' in the container, which runs all the tests
+
+At this point, you'll see a bunch of tests run and hopefully all pass.
+
+To do some actual development work, you probably want to do another volume map from the universe repo on your host into the container, then shell in interactively:
+
+.. code:: shell
+
+    docker run --privileged --rm -it -e DOCKER_NET_HOST=172.17.0.1 -v /var/run/docker.sock:/var/run/docker.sock -v (full path to cloned repo above):/usr/local/universe universe python
+
+As you edit the files in your cloned git repo, they will be changed in your docker container and you'll be able to run them in python.
+
+Note if you are using docker for Windows, you'll need to enable the relevant shared drive for this to work.
+
+
 Notes on installation
 ~~~~~~~~~~~~~~~~~~~~~
 
 * When installing ``universe``, you may see ``warning`` messages.  These lines occur when installing numpy and are normal.
 * You'll need a ``go version`` of at least 1.5. Ubuntu 14.04 has an older Go, so you'll need to `upgrade <https://golang.org/doc/install>`_ your Go installation.
 * We run Python 3.5 internally, so the Python 3.5 variants will be much more thoroughly performance tested. Please let us know if you see any issues on 2.7.
-* While we don't officially support Windows, we expect our code to be very close to working there. We'd be happy to take pull requests that take our Windows compatibility to 100%.
+* While we don't officially support Windows, we expect our code to be very close to working there. We'd be happy to take pull requests that take our Windows compatibility to 100%. In the meantime, the easiest way for Windows users to run universe is to use the alternate configuration described above.
 
 System overview
 ---------------
@@ -218,7 +267,7 @@ IP address of your Docker daemon, and use ``openai`` as the password.)
 Breaking down the example
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-So we managed to run an agent, but what did all the code actually
+So we managed to run an agent, what did all the code actually
 mean? We'll go line-by-line through the example.
 
 * First, we import the `gym <https://github.com/openai/gym>`__ library,
@@ -349,6 +398,24 @@ Additional documentation
 More documentation not covered in this README can be found in the
 `doc folder <doc>`__ of this repository.
 
+Getting help
+============
+
+If you encounter a problem that is not addressed in this README page
+or in the `extra docs <doc>`__, then try our wiki page of `solutions
+to common problems
+<https://github.com/openai/universe/wiki/Solutions-to-common-problems>`__ -
+and add to it if your solution isn't there!
+
+You can also search through the `issues
+<https://github.com/openai/universe/issues?utf8=%E2%9C%93&q=is%3Aissue>`__
+on this repository and our `discussion board
+<https://discuss.openai.com/c/Universe>`__ to see if another user has posted
+about the same problem or to ask for help from the community.
+
+If you still can't solve your problem after trying all of the above
+steps, please post an issue on this repository.
+
 What's next?
 ============
 
@@ -357,3 +424,14 @@ What's next?
 * For more information on how to manage remotes, see the separate documentation page on `remotes <doc/remotes.rst>`__.
 
 * Sign up for a `beta <https://docs.google.com/forms/d/e/1FAIpQLScAiW-kIS0mz6hdzzFZJJFlXlicDvQs1TX9XMEkipNwjV5VlA/viewform>`_ to get early access to upcoming Universe releases, such as tools to integrate new Universe environments or a dataset of recorded human demonstrations.
+
+
+Changelog
+---------
+- 2017-02-08: The old location for wrappers.SafeActionSpace has been moved to wrappers.experimental.SafeActionSpace. SoftmaxClickMouse has also been moved to wrappers.experimental.SoftmaxClickMouse
+- 2017-01-08: The wrappers.SafeActionSpace has been moved to wrappers.experimental.SafeActionSpace. The old location will remain with a deprecation warning until 2017-02-08.
+- 2016-12-27: BACKWARDS INCOMPATIBILITY: The gym monitor is now a
+  wrapper. Rather than starting monitoring as
+  `env.monitor.start(directory)`, envs are now wrapped as follows:
+  `env = wrappers.Monitor(env, directory)`. This change is on master
+  and will be released with 0.21.0.
